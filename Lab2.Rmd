@@ -1,0 +1,323 @@
+
+```{r}
+library(lmtest)
+
+setwd("C:/Subha/WS271-Regression/Labs/lab2_w271_2016Spring")
+wd = read.csv("WageData2.csv")
+str(wd)
+attach(wd)
+```
+
+Dataset has 1000 observations
+
+
+
+Wage: ranges from about 100 to 2500 with a mean of about 580 (units not clear)
+Positively skewed, no missing values
+
+```{r}
+
+summary(wage)
+str(wage)
+nf <- layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,3))
+par(mar=c(3.1, 3.1, 1.1, 2.1))
+boxplot(wage, horizontal=TRUE,  outline=TRUE)
+hist(wage)
+```
+
+
+Education: ranges from 2 to 18, unit must be years
+Negatively skewed
+
+```{r}
+summary(education)
+str(education)
+nf <- layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,3))
+par(mar=c(3.1, 3.1, 1.1, 2.1))
+boxplot(education, horizontal=TRUE,  outline=TRUE)
+hist(education)
+```
+
+Experience: ranges from 0 to 23 years, mean = 8.8
+Highly positivey skewed
+
+```{r}
+summary(experience)
+str(experience)
+nf <- layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,3))
+par(mar=c(3.1, 3.1, 1.1, 2.1))
+boxplot(experience, horizontal=TRUE,  outline=TRUE)
+hist(experience)
+```
+
+
+```{r}
+summary(age)
+str(age)
+hist(age)
+```
+
+
+```{r}
+summary(dad_education)
+str(dad_education)
+hist(dad_education)
+```
+
+```{r}
+summary(mom_education)
+str(mom_education)
+hist(mom_education)
+```
+
+Has quite a few missing observations (316)
+
+```{r}
+summary(IQscore)
+str(IQscore)
+hist(IQscore)
+```
+
+almost normal distribution
+
+```{r}
+summary(logWage)
+str(logWage)
+hist(logWage)
+```
+
+```{r}
+summary(raceColor)
+table(raceColor)
+```
+
+City + rural > 1000, so some people identify as both city and rural
+
+```{r}
+summary(city)
+table(city)
+
+summary(rural)
+table(rural)
+
+table(z1)
+table(z2)
+```
+
+```{r}
+wd$experienceSquare = experience**2
+
+hist(wd$experienceSquare)
+attach(wd)
+```
+
+
+4.2 bivariate analysis
+
+```{r}
+panel.hist <- function(x, ...)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5) )
+  h <- hist(x, plot = FALSE)
+  breaks <- h$breaks; nB <- length(breaks)
+  y <- h$counts; y <- y/max(y)
+  rect(breaks[-nB], 0, breaks[-1], y, col = "cyan", ...)
+}
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- abs(cor(x, y))
+  txt <- format(c(r, 0.123456789), digits = digits)[1]
+  txt <- paste0(prefix, txt)
+  if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+  text(0.5, 0.5, txt, cex = cex.cor * r)
+}
+
+pairs(wage~age+experience,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+pairs(wage~education+IQscore,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+pairs(wage~dad_education+mom_education,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+pairs(wage~raceColor+city,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+
+
+pairs(logWage~education+IQscore,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+pairs(logWage~dad_education+mom_education,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+```
+
+
+4.3
+
+```{r}
+model1 = lm(logWage~education+experience+age+raceColor, data=wd)
+coeftest(model1)
+
+plot(model1)
+
+summary(model1)
+```
+
+diagnostic plots show homoskedasticity and zero-conditional mean assumptions are satisfied. Errors are normally distributed, but in a sample size this large this is less important. Residual vs Leverage plot show no points approaching the cook's distance.
+
+Using the summary function to display parameters (not necessary to use the heteroskedasticity-robust versions here)
+
+The residual standard error has 996 degrees of freedom which is (n - k -1)
+n= number of observations
+k = number of coefficients excluding intercept, in other words we are estimating k+1 parameters
+
+the F-statistic is the ratio of the explained R-squared to the unexplained. The numerator degrees of freedom = # of coeffients being estimated. Denominator df = #of observations - k -1
+
+
+
+
+3 The unexpected result is that R did not calculate an intercept for the age variable. Upon closer examination, this is not surprising. Experience is directly derived from age in this dataset, and the two are highly positively correlated as can be seen from the graph. 
+To correct for this, remove age from the regression model
+
+```{r}
+pairs(age~experience+education,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+
+model2 = lm(logWage~education+experience+raceColor, data=wd)
+summary(model2)
+```
+
+The coeff on education is ~ 0.08, meaning that an increase in 1 year of education leads to an 8% increase in wages, holding experience and raceColor fixed.
+
+#the coeff on experience is 0.03, meaning that an extra year of experience leads to a 3% increase in wages, holding education and raceColor fixed.
+
+
+#4.4
+
+```{r}
+model3 = lm(logWage~education+experience+experienceSquare+raceColor, data=wd)
+plot(model3)
+coeftest(model3)
+summary(model3)
+```
+
+the model is:
+
+logWage = Beta_0 + B_1 * education + B_2 * experience + B_3 * experienceSquare + B_4*raceColor
+
+To get the effect of experience on wage, take the partial derivate of the model wrt experience, so we get:
+d/dE (logWage) = 0.09 -0.002*experience
+
+```{r}
+X_exp = seq(0,30)
+Y_estChange = (0.09 - X_exp*0.002)*100
+plot(X_exp, Y_estChange)
+```
+
+change in wage when experience=10 yrs: 7% increase
+(0.09 - 10*0.002)*100
+
+
+#4.5
+
+```{r}
+model4 = lm(logWage~education+experience+experienceSquare+raceColor+dad_education+mom_education+rural+city, data=wd)
+summary(model4)
+```
+
+#4.5.1 from the degrees of freedom on the F-statistic we can see that 714+8+1 = 723 observations out of 1000 were used
+
+```{r}
+sum(is.na(wd$dad_education)) # 239
+sum(is.na(wd$mom_education)) # 128
+sum(is.na(wd$mom_education) & is.na(wd$dad_education)): 90
+missing_dad_edc = wd[is.na(wd$dad_education),]
+
+missing_mom_educ = wd[is.na(wd$mom_education),]
+
+```
+
+239+128-90 = 277; 1000 - 277 = 723. This accounts for all the missing observations
+
+
+
+
+could not find any pattern
+
+
+#4.5.2: 
+R cannot deal with missing values in a regresion and if we want to find the effect of dad_education and mom_education, we have to throw away the missing values across all variables
+
+
+#4.5.3
+
+```{r}
+wd$dad_educ2 = wd$dad_education
+wd$dad_educ2[is.na(wd$dad_educ2)] = mean(wd$dad_education, na.rm=T)
+#sum(is.na(wd$dad_educ2))
+
+wd$mom_educ2 = wd$mom_education
+wd$mom_educ2[is.na(wd$mom_educ2)] = mean(wd$mom_education, na.rm=T)
+#sum(is.na(wd$mom_educ2))
+
+model5 = lm(logWage~education+experience+experienceSquare+raceColor+dad_educ2+mom_educ2+rural+city, data=wd)
+summary(model5)
+```
+
+the coefficients on dad_education and mom_education remain statistically insignificant, in fact they dropped in siginificance value
+
+
+#4.5.4
+
+```{r}
+model6 =lm(dad_education~education+experience+raceColor, data=wd)
+plot(model6)
+summary(model6)
+```
+
+dad_educ = 4.93 + 0.5* education -0.148*experience - 2.12*raceColor
+
+```{r}
+wd$dad_educ3 = wd$dad_education
+wd_to_fix = wd[is.na(wd$dad_educ3),]
+wd_to_fix$dad_educ3 = 4.93 + 0.5 * wd_to_fix$education - 0.148*wd_to_fix$experience - 2.12*wd_to_fix$raceColor
+sum(is.na(wd$dad_educ3))
+sum(is.na(wd_to_fix$dad_educ3))
+
+wd$dad_educ3[is.na(wd$dad_educ3)] = wd_to_fix$dad_educ3
+```
+
+```{r}
+model7 =lm(mom_education~education+experience+raceColor, data=wd)
+plot(model7)
+summary(model7)
+```
+
+mom_educ = 5.59 + 0.43* education - 0.07 * experience - 1.46* raceColor
+
+```{r}
+wd$mom_educ3 = wd$mom_education
+wd_to_fix = wd[is.na(wd$mom_educ3),]
+wd_to_fix$mom_educ3 = 5.59 + 0.43*wd_to_fix$education - 0.07*wd_to_fix$experience - 1.46*wd_to_fix$raceColor
+sum(is.na(wd$mom_educ3))
+sum(is.na(wd_to_fix$mom_educ3))
+
+wd$mom_educ3[is.na(wd$mom_educ3)] = wd_to_fix$mom_educ3
+```
+
+```{r}
+model8 = lm(logWage~education+experience+experienceSquare+raceColor+dad_educ3+mom_educ3+rural+city, data=wd)
+summary(model8)
+```
+
+still not statitically significant effect. The coefficient is 0.2% increase in wage for every extra year of dad or mom education, which is a pretty small effect.
+
+#4.5.6 Prefer which one? The first one. Truest to data.
+
+
+#4.6.1
+Z1 must be uncorrelated with the error term u
+
+#4.6.2
+
+
+
