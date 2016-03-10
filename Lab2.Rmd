@@ -1,0 +1,619 @@
+---
+title: "Lab 2"
+author: "Ron Cordell, Lei Yang, Subhashini Raghunathan"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Question 4. Classical Linear Model 1
+
+### Background
+
+The file WageData2.csv contains a dataset that has been used to quantify the impact of education on wage. One of the reasons we are proving another wage-equation exercise is that this area by far has the most (and most well-known) applications of instrumental variable techniques, the endogenity problem is obvious in this context, and the datasets are easy to obtain.
+
+### The Data
+
+You are given a sample of 1000 individuals with their wage, education level, age, working experience, race (as an indicator), father's and mother's education level, whether the person lived in a rural area, whether the person lived in a city, IQ score, and two potential instruments, called $z1$ and $z2$.
+
+The dependent variable of interest is $wage$ (or its transformation), and we are interested in measuring "return" to education, where return is measured in the increase (hopefully) in wage with an additional year of education.
+
+## Question 4.1
+
+
+Conduct an univariate analysis (using tables, graphs, and descriptive statistics found in the last 7 lectures) of all of the variables in the dataset.
+
+Also, create two variables: (1) natural log of wage (name it $logWage$) (2) square of experience (name it $experienceSquare$)
+
+
+```{r}
+library(lmtest)
+library(car)
+library(sandwich)
+setwd("C:/Subha/WS271-Regression/Labs/lab2_w271_2016Spring")
+wd = read.csv("WageData2.csv")
+str(wd)
+attach(wd)
+```
+
+Dataset has 1000 observations
+
+
+Wage: ranges from about 100 to 2500 with a mean of about 580 (units not clear)
+Positively skewed, no missing values
+
+```{r}
+
+summary(wage)
+str(wage)
+nf <- layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,3))
+par(mar=c(3.1, 3.1, 1.1, 2.1))
+boxplot(wage, horizontal=TRUE,  outline=TRUE)
+hist(wage)
+```
+
+
+Education: ranges from 2 to 18, unit must be years
+Negatively skewed
+
+```{r}
+summary(education)
+str(education)
+nf <- layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,3))
+par(mar=c(3.1, 3.1, 1.1, 2.1))
+boxplot(education, horizontal=TRUE,  outline=TRUE)
+hist(education)
+```
+
+Experience: ranges from 0 to 23 years, mean = 8.8
+Highly positivey skewed
+
+```{r}
+summary(experience)
+str(experience)
+nf <- layout(mat = matrix(c(1,2),2,1, byrow=TRUE),  height = c(1,3))
+par(mar=c(3.1, 3.1, 1.1, 2.1))
+boxplot(experience, horizontal=TRUE,  outline=TRUE)
+hist(experience)
+```
+
+
+```{r}
+summary(age)
+str(age)
+hist(age)
+```
+
+
+```{r}
+summary(dad_education)
+str(dad_education)
+hist(dad_education)
+```
+
+```{r}
+summary(mom_education)
+str(mom_education)
+hist(mom_education)
+```
+
+Has quite a few missing observations (316)
+
+```{r}
+summary(IQscore)
+str(IQscore)
+hist(IQscore)
+```
+
+almost normal distribution
+
+```{r}
+summary(logWage)
+str(logWage)
+hist(logWage)
+```
+
+```{r}
+summary(raceColor)
+table(raceColor)
+```
+
+City + rural > 1000, so some people identify as both city and rural
+
+```{r}
+summary(city)
+table(city)
+
+summary(rural)
+table(rural)
+
+table(z1)
+table(z2)
+```
+
+```{r}
+wd$experienceSquare = experience**2
+
+hist(wd$experienceSquare)
+attach(wd)
+```
+
+
+
+## Question 4.2
+
+Conduct a bivariate analysis (using tables, graphs, descriptive statistics found in the last 7 lectures) of $wage$ and $logWage$ and all the other variables in the datasets.
+
+
+
+```{r}
+panel.hist <- function(x, ...)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5) )
+  h <- hist(x, plot = FALSE)
+  breaks <- h$breaks; nB <- length(breaks)
+  y <- h$counts; y <- y/max(y)
+  rect(breaks[-nB], 0, breaks[-1], y, col = "cyan", ...)
+}
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- abs(cor(x, y))
+  txt <- format(c(r, 0.123456789), digits = digits)[1]
+  txt <- paste0(prefix, txt)
+  if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+  text(0.5, 0.5, txt, cex = cex.cor * r)
+}
+
+pairs(wage~age+experience,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+pairs(wage~education+IQscore,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+pairs(wage~dad_education+mom_education,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+pairs(wage~raceColor+city,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+
+
+pairs(logWage~education+IQscore,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+pairs(logWage~dad_education+mom_education,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+```
+
+
+## Question 4.3
+
+Regress $log(wage)$ on education, experience, age, and raceColor.
+
+
+**1. Report all the estimated coefficients, their standard errors, t-statistics, F-statistic of the regression, $R^2$, $adjusted\; R^2$, and degrees of freedom.**
+
+
+```{r}
+model1 = lm(logWage~education+experience+age+raceColor, data=wd)
+coeftest(model1)
+
+plot(model1)
+
+summary(model1)
+```
+
+diagnostic plots show homoskedasticity and zero-conditional mean assumptions are satisfied. Errors are normally distributed, but in a sample size this large this is less important. Residual vs Leverage plot show no points approaching the cook's distance.
+
+Using the summary function to display parameters (not necessary to use the heteroskedasticity-robust versions here)
+
+
+**2. Explain why the degrees of freedom takes on the specific value you observe in the regression output.**
+
+
+The residual standard error has 996 degrees of freedom which is (n - k -1)
+n= number of observations
+k = number of coefficients excluding intercept, in other words we are estimating k+1 parameters
+
+the F-statistic is the ratio of the explained R-squared to the unexplained. The numerator degrees of freedom = # of coeffients being estimated. Denominator df = #of observations - k -1
+
+
+**3. Describe any unexpected results from your regression and how you would resolve them (if the intent is to estimate return to education, condition on race and experience).**
+
+3 The unexpected result is that R did not calculate an intercept for the age variable. Upon closer examination, this is not surprising. Experience is directly derived from age in this dataset, and the two are highly positively correlated as can be seen from the graph. 
+To correct for this, remove age from the regression model
+
+```{r}
+pairs(age~experience+education,data=wd, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+
+model2 = lm(logWage~education+experience+raceColor, data=wd)
+summary(model2)
+```
+
+**4. Interpret the coefficient estimate associated with education**
+
+The coeff on education is ~ 0.08, meaning that an increase in 1 year of education leads to an 8% increase in wages, holding experience and raceColor fixed.
+
+**5. Interpret the coefficient estimate associated with experience**
+
+the coeff on experience is 0.03, meaning that an extra year of experience leads to a 3% increase in wages, holding education and raceColor fixed.
+
+
+## Question 4.4
+
+Regress $log(wage)$ on education, experience, experienceSquare, and raceColor.
+
+```{r}
+model3 = lm(logWage~education+experience+experienceSquare+raceColor, data=wd)
+plot(model3)
+coeftest(model3)
+summary(model3)
+```
+
+the model is:
+
+logWage = Beta_0 + B_1 * education + B_2 * experience + B_3 * experienceSquare + B_4*raceColor
+
+**1. Plot a graph of the estimated effect of experience on wage.**
+
+To get the effect of experience on wage, take the partial derivate of the model wrt experience, so we get:
+d/dE (logWage) = 0.09 -0.002*experience
+
+```{r}
+X_exp = seq(0,30)
+Y_estChange = (0.09 - X_exp*0.002)*100
+plot(X_exp, Y_estChange)
+```
+
+**2. What is the estimated effect of experience on wage when experience is 10 years?**
+
+change in wage when experience=10 yrs: 7% increase
+(0.09 - 10*0.002)*100
+
+
+## Question 4.5
+
+
+Regress $logWage$ on _education_, _experience_, _experienceSquare_, _raceColor_, _dad_education_, _mom_education_, _rural_, _city_.
+
+```{r}
+model4 = lm(logWage~education+experience+experienceSquare+raceColor+dad_education+mom_education+rural+city, data=wd)
+summary(model4)
+```
+
+**1. What are the number of observations used in this regression? Are missing values a problem? Analyze the missing values, if any, and see if there is any discernible pattern with wage, education, experience, and raceColor.**
+
+4.5.1 from the degrees of freedom on the F-statistic we can see that 714+8+1 = 723 observations out of 1000 were used
+
+```{r}
+sum(is.na(wd$dad_education)) # 239
+sum(is.na(wd$mom_education)) # 128
+sum(is.na(wd$mom_education) & is.na(wd$dad_education)): 90
+missing_dad_edc = wd[is.na(wd$dad_education),]
+
+missing_mom_educ = wd[is.na(wd$mom_education),]
+
+```
+
+239+128-90 = 277; 1000 - 277 = 723. This accounts for all the missing observations
+
+
+could not find any pattern
+
+
+**2. Do you just want to "throw away" these observations?**
+
+
+R cannot deal with missing values in a regresion and if we want to find the effect of dad_education and mom_education, we have to throw away the missing values across all variables
+
+**3. How about blindly replace all of the missing values with the average of the observed values of the corresponding variable? Rerun the original regression using all of the observations?**
+
+
+```{r}
+wd$dad_educ2 = wd$dad_education
+wd$dad_educ2[is.na(wd$dad_educ2)] = mean(wd$dad_education, na.rm=T)
+#sum(is.na(wd$dad_educ2))
+
+wd$mom_educ2 = wd$mom_education
+wd$mom_educ2[is.na(wd$mom_educ2)] = mean(wd$mom_education, na.rm=T)
+#sum(is.na(wd$mom_educ2))
+
+model5 = lm(logWage~education+experience+experienceSquare+raceColor+dad_educ2+mom_educ2+rural+city, data=wd)
+summary(model5)
+```
+
+the coefficients on dad_education and mom_education remain statistically insignificant, in fact they dropped in siginificance value
+
+**4. How about regress the variable(s) with missing values on education, experience, and raceColor, and use this regression(s) to predict (i.e. "impute") the missing values and then rerun the original regression using all of the observations?**
+
+
+
+```{r}
+model6 =lm(dad_education~education+experience+raceColor, data=wd)
+plot(model6)
+summary(model6)
+```
+
+dad_educ = 4.93 + 0.5* education -0.148*experience - 2.12*raceColor
+
+```{r}
+wd$dad_educ3 = wd$dad_education
+wd_to_fix = wd[is.na(wd$dad_educ3),]
+wd_to_fix$dad_educ3 = 4.93 + 0.5 * wd_to_fix$education - 0.148*wd_to_fix$experience - 2.12*wd_to_fix$raceColor
+sum(is.na(wd$dad_educ3))
+sum(is.na(wd_to_fix$dad_educ3))
+
+wd$dad_educ3[is.na(wd$dad_educ3)] = wd_to_fix$dad_educ3
+```
+
+```{r}
+model7 =lm(mom_education~education+experience+raceColor, data=wd)
+plot(model7)
+summary(model7)
+```
+
+mom_educ = 5.59 + 0.43* education - 0.07 * experience - 1.46* raceColor
+
+```{r}
+wd$mom_educ3 = wd$mom_education
+wd_to_fix = wd[is.na(wd$mom_educ3),]
+wd_to_fix$mom_educ3 = 5.59 + 0.43*wd_to_fix$education - 0.07*wd_to_fix$experience - 1.46*wd_to_fix$raceColor
+sum(is.na(wd$mom_educ3))
+sum(is.na(wd_to_fix$mom_educ3))
+
+wd$mom_educ3[is.na(wd$mom_educ3)] = wd_to_fix$mom_educ3
+```
+
+```{r}
+model8 = lm(logWage~education+experience+experienceSquare+raceColor+dad_educ3+mom_educ3+rural+city, data=wd)
+summary(model8)
+```
+
+still not statitically significant effect. The coefficient is 0.2% increase in wage for every extra year of dad or mom education, which is a pretty small effect.
+
+**5. Compare the results of all of these regressions. Which one, if at all, would you prefer?**
+
+4.5.6 Prefer which one? The first one. Truest to data.
+
+
+## Question 4.6
+
+1. Consider using $z_{1}$ as the instrumental variable (IV) for education. What assumptions are needed on $z_{1}$ and the error term (call it, $u$)?
+
+Z1 must be uncorrelated with the error term u
+
+**2. Suppose $z_{1}$ is an indicator representing whether or not an individual lives in an area in which there was a recent policy change to promote the importance of education. Could $z_{1}$ be correlated with other unobservables captured in the error term?**
+
+
+**3. Using the same specification as that in question 4.5, estimate the equation by 2SLS, using both $z_{1}$ and $z_{2}$ as instrument variables. Interpret the results. How does the coefficient estimate on education change?**
+
+\newpage
+
+# Question 5. Classical Linear Model 2
+
+
+The dataset, wealthy candidates.csv, contains candidate level electoral data from a developing country. Politically, each region (which is a subset of the country) is divided in to smaller electoral districts where the candidate with the most votes wins the seat. This dataset has data on the financial wealth and electoral performance (voteshare) of electoral candidates. We are interested in understanding whether or not wealth is an electoral advantage. In other words, do wealthy candidates fare better in elections than their less wealthy peers?
+
+**1. Begin with a parsimonious, yet appropriate, specification. Why did you choose this model? Are your results statistically significant? Based on these results, how would you answer the research question? Is there a linear relationship between wealth and electoral performance?**
+
+```{r}
+library(car)
+library(lmtest)
+
+setwd("C:/Subha/WS271-Regression/Labs/lab2_w271_2016Spring")
+
+W = read.csv("Wealthy_candidates.csv")
+str(W)
+summary(W$urb)
+summary(W$lit)
+summary(W$voteshare)
+summary(W$absolute_wealth)
+
+hist(W$voteshare)
+hist(W$lit)
+hist(W$urb)
+
+
+hist(W$absolute_wealth)
+
+sum(W$absolute_wealth > 2e+8, na.rm=T) # 6 values
+sum(W$absolute_wealth > 1e+8, na.rm=T) # 7 values
+sum(W$absolute_wealth > 5e+7, na.rm=T) #19 values
+
+W[W$absolute_wealth >= 1e+8, ]
+```
+
+wealth  has an expected positive skew. There seem to be very few values beyond 2E+8, and many values at 2. 
+
+create a new variable with the outliers and missing values taken out. Use the log of the wealth for analysis
+
+```{r}
+W$abs_wealth2 = W$absolute_wealth
+W$abs_wealth2[W$abs_wealth2 == 2] = NA
+W$abs_wealth2[W$abs_wealth2 > 1E+8] = NA
+
+
+W$lwealth = log(W$abs_wealth2)
+hist(W$lwealth)
+
+```
+
+```{r}
+model1 = lm(voteshare ~ lwealth, data=W)
+plot(model1)
+summary(model1)
+
+```
+
+The model is statistically significant. the coefficient on logWealth is 0.005, indicating that a 1% increase in wealth increases the voteshare by (0.005/100) %
+
+
+**2. A team-member suggests adding a quadratic term to your regression. Based on your prior model, is such an addition warranted? Add this term and interpret the results. Do wealthier candidates fare better in elections?**
+
+
+Adding a quadratic term might help, since we expect diminshing returns from wealth in predicting voteshare.
+
+```{r}
+W$lwealth_squared = W$lwealth**2
+
+
+model2 = lm(voteshare ~ lwealth+lwealth_squared, data=W)
+summary(model2)
+
+```
+
+With the addition of the quadratic, the coefficient on lWealth has reduced, and the quadratic  term has a negative coefficient indicating diminishing returns. Wealthier candidates do fare better, but only upto the turning point, which is (B_1/2*B_2) = 
+
+
+
+**3. Another team member suggests that it is important to take into account the fact that different regions have different electoral contexts. In particular, the relationship between candidate wealth and electoral performance might be different across states. Modify your model and report your results. Test the hypothesis that this addition is not needed.**
+
+Add region as a factor. Create dummy variables for them
+
+```{}
+W$region2 = W$region == "Region 2"
+summary(W$region2)
+W$region3 = W$region == "Region 3"
+summary(W$region3)
+
+model3 = lm(voteshare~lwealth+region2+region3, data=W)
+#plot(model3)
+summary(model3)
+
+anova(model1, model3)
+
+```
+
+We find a statistically significant result for the effect of region and wealth on voteshare. The adjusted R-squared is quite low at 3.8%.
+
+To compare the 2 models, use anova. We see that the second model is significantly different from the first one. The addition of the region variables is a relevant addition to the model.
+
+
+**4. Return to your parsimonious model. Do you think you have found a causal and unbiased estimate? Please state the conditions under which you would have an unbiased and causal estimates. Do these conditions hold?**
+
+Model1 found a statistically significant effect of wealth on voteshare, but this does not imply the model is causal or unbiased.
+
+In order to be causal, the lWealth variable (i.e the candidate's wealth) must be uncorrleated with the error term. This means that no unobserved variables may be correlated with it. We know this to not be true, since many other factors such as family background, business connections, education, etc are correlated with a person's wealth.
+
+
+**5. Someone proposes a difference in difference design. Please write the equation for such a model. Under what circumstances would this design yield a causal effect?**
+
+ voteshare = B_0 + B_1 * lWealth + B_2 * region3 + B_3 * region3 + error
+
+The difference in difference equation would be:
+delta(voteshare) = delta(B_1) * lWealth + delta(B_2) * region2 + delta(B_3) * region3 + delta(error)
+
+This would yield a causal result if the unobserved variables that are correlated with the predictors are constant at the two time periods when the measurements were taken.
+
+
+
+\newpage
+
+# Question 6. Classical Linear Model 3
+
+Your analytics team has been tasked with analyzing aggregate revenue, cost and sales data, which have been provided to you in the R workspace/data frame retailSales.Rdata.
+
+Your task is two fold. First, your team is to develop a model for predicting (forecasting) revenues. Part of the model development documentation is a backtesting exercise where you train your model using data from the first two years and evaluate the model's forecasts using the last two years of data.
+
+Second, management is equally interested in understanding variables that might affect revenues in support of management adjustments to operations and revenue forecasts. You are also to identify factors that affect revenues, and discuss how useful management's planned revenue is for forecasting revenues.
+
+Your analysis should address the following:
+  
+* Exploratory Data Analysis: focus on bivariate and multivariate relationships
+* Be sure to assess conditions and identify unusual observations
+* Is the change in the average revenue different from 95 cents when the planned revenue increases by $1?
+* Explain what interaction terms in your model mean in context sup- ported by data visualizations
+* Give two reasons why the OLS model coefficients may be biased and/or not consistent, be specific.
+* Propose (but do not actually implement) a plan for an IV approach to improve your forecasting model.
+
+```{r}
+library(car)
+library(lmtest)
+
+setwd("C:/Subha/WS271-Regression/Labs/lab2_w271_2016Spring")
+
+
+load("RetailSales.Rdata")
+rs = retailSales
+str(rs)
+summary(rs)
+
+#split into training and test data
+training = rs[(rs$Year == 2004) | (rs$Year == 2005),]
+test = rs[(rs$Year == 2006) | (rs$Year == 2007),]
+```
+
+**Exploratory data analysis**
+
+Use the log of revenue as the dependent variable. this makes it normally distributed. Similar for Product.cost, Unit.price and Unit.cost
+
+```{r}
+summary(training$Revenue)
+training$Revenue[training$Revenue == 0] = NA
+training$lrevenue = log(training$Revenue)
+hist(training$lrevenue)
+summary(training$lrevenue)
+training$lproduct.cost = log(training$Product.cost)
+training$lunit.price = log(training$Unit.price)
+training$lunit.cost = log(training$Unit.cost)
+training$lplanned.revenue = log(training$Planned.revenue)
+summary(training$lplanned.revenue)
+```
+
+```{r}
+panel.hist <- function(x, ...)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5) )
+  h <- hist(x, plot = FALSE)
+  breaks <- h$breaks; nB <- length(breaks)
+  y <- h$counts; y <- y/max(y)
+  rect(breaks[-nB], 0, breaks[-1], y, col = "cyan", ...)
+}
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...)
+{
+  usr <- par("usr"); on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- abs(cor(x, y))
+  txt <- format(c(r, 0.123456789), digits = digits)[1]
+  txt <- paste0(prefix, txt)
+  if(missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+  text(0.5, 0.5, txt, cex = cex.cor * r)
+}
+
+pairs(lrevenue~Product.line+ Product.type,data=training, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+pairs(lrevenue~lproduct.cost+lunit.price,data=training, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist);
+
+
+```
+
+It looks like the formula to calculate Revenue is: 
+Revenue = Product.Cost + Gross.profit and 
+
+and Planned.revenue = Quantity * Unit.Price
+
+```{r}
+model1 = lm(lrevenue~lplanned.revenue+lproduct.cost+Product.line+Product.line*lproduct.cost, data=training)
+summary(model1)
+
+model2 = lm(Revenue~Planned.revenue+Product.cost+Product.line+Product.line*Product.cost, data=training)
+summary(model2)
+```
+
+** Is the change in the average revenue different from 95 cents when the planned revenue increases by $1?**
+
+```{r}
+linearHypothesis(model2, "Planned.revenue = 0.95",vcov = vcovHC)
+
+```
+
+The result is highly statistically significant, supporting the hypothesis that the change in average revenuw is 95 cents when planned revenue increases by $1
+
+
+
+
+
+
+
+
