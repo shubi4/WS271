@@ -1,0 +1,149 @@
+---
+title: "Homework 7"
+author: "Ron Cordell, Lei Yang, Subhashini Raghunathan"
+date: "March 23, 2016"
+output: pdf_document
+---
+  
+
+#Question 1:
+**1.1 Load hw07_series1.csv**
+**1.2 Describe the basic structure of the data and provide summary statistics of the series**
+
+```{r}
+setwd('C:/Subha/WS271-Regression/Labs/data')
+
+#read the series from file
+s1 = read.csv("hw07_series1.csv")
+
+#describe the basic structure and summary stats
+str(s1)
+summary(s1)
+hist(s1$X10.01, breaks="FD", main="Histogram of the series Homework7")
+qqnorm(s1$X10.01,main="qqplot of the series Homework7", type ="p")
+qqline(s1$X10.01)
+
+```
+
+
+- Basic structure - the series has 74 observations with no frequncy. The data are somewhat normally distributed with a positive skew.
+
+
+
+**1.3 Plot histogram and time-series plot of the series. Describe the patterns exhibited in histograrm and**
+**time-series plot. For time series analysis, is it sufficient to use only histogram to describe a series?**
+
+```{r}
+#plot time series
+s1.ts= ts(data=s1$X10.01)
+plot(s1.ts, main="time series plot of Homework7")
+```
+
+- Patterns - the time series plot has upwards and downwards trends that are somewhat persistent. It resembles a random walk model.
+
+- There is no frequency attached to the time series, hence it is not possible to run decompose() and examine trends and seasonal variations.
+
+- For time series analysis, histogram alone is not enough. ACF and PACF graphs much more important, as they show the dependency structures in the data.
+
+
+
+**1.4 Plot the ACF and PACF of the series. Describe the patterns exhibited in the ACF and PACF.**
+
+```{r}
+acf(s1.ts, main="ACF of the series Homework7")
+pacf(s1.ts, main="PACF of the series Homework7")
+```
+
+- The ACF is significant until lag 7. It gradually drops to 0.
+- The PACF abruptly drops off to 0 after the second lag. This is indicative of an AR(2) model.
+
+
+
+**1.5 Estimate the series using the ar() function.**
+**1.6 Report the estimated AR parameters, the order of the model, and standard errors.**
+```{r}
+s1.arfit <- ar(s1.ts, method = "mle")
+str(s1.arfit)
+s1.arfit$order # order of the AR model with lowest AIC
+s1.arfit$ar    # parameter estimate
+s1.arfit$aic   # AICs of the fit models
+sqrt(s1.arfit$asy.var) # asy. standard error
+```
+
+- The estimated model is AR(2):
+**x[t] = 0.48x[t-1] + 0.3x[t-2] + w[t]**
+
+- The model is order: 2 with a standard error of 0.11 for each parameter.
+
+
+
+#Question 2:
+ 
+**2.1 Simulate a time series of lenght 100 for the following model. Name the series x.**
+**x[t] = 5/6 x[t???1] ??? 1/6 x[t???2] + w**
+
+**2.2 Plot the correlogram and partial correlogram for the simulated series. Comments on the plots.**
+
+```{r}
+set.seed(898)
+x = arima.sim(n = 100, list(ar = c(0.83, -0.17)))
+
+plot(x, main="Simulated time series of an AR(2) model (0.83, -0.17)")
+str(x)
+
+acf(x, main="ACF of a simulated AR(2) model (0.83, -0.17)")
+pacf(x, main = "PACF of a simulated AR(2) model (0.83, -0.17)")
+```
+
+- The ACF graph has 3 significant lags (the 4th one is marginally significant) and gradually drops off to zero. 
+- The ACF has some periodicity but not the damped cosine function typical of an AR model. 
+- The PACF graph has 1 significant lags and drops off significantly after that.  This is suggestive of an AR(1) model.But we know our true modell is AR(2). The difference could be due to sampling variations.
+
+
+**2.3 Estimate an AR model for this simulated series. Report the estimated AR parameters, standard erros,
+and the order of the AR model.**
+
+```{r}
+x.arfit <- ar(x, method = "mle")
+str(x.arfit)
+x.arfit$order # order of the AR model with lowest AIC
+x.arfit$ar    # parameter estimate
+x.arfit$aic   # AICs of the fit models
+sqrt(x.arfit$asy.var) # asy. standard error
+x.arfit$aic
+```
+
+- The ar() function estimated an AR(1) model but we can see that the AIC difference for order 2 is very small, suggesting that either AR(1) or AR(2) model would be a good fit.
+
+
+
+2.4 Construct a 95% confidence intervals for the parameter estimates of the estimated model. Do the "true"
+mode parameters fall within the confidence intervals? Explain the 95% confidence intervals in this context.
+
+```{r}
+x.arfit$ar + c(2,-2)*sqrt(x.arfit$asy.var)
+```
+
+- The confidence interval in this case includes the true population parameter alpha1 = 0.83. The model was estimated as AR(1), hence the second true population parameter was not estimated.
+- The 95% confidence interval is the interval within which, for 95% of the samples, the true population parameters lie. The interpretation is the same in the context of this problem.
+
+
+**2.5 Is the estimated model stationary or non-stationary?**
+
+The estimated model is AR(1):
+x[t] = 0.7x[t-1] + w
+ 
+The characteristic equation is (1- 0.7*B) = 0, and the root of the is B = 1/0.7 = 1.4
+As the root is > 1, the estimated model is stationary.
+
+
+**2.6 Plot the correlogram of the residuals of the estimated model. Comment on the plot.**
+
+```{r}
+acf(x.arfit$resid[-(1:x.arfit$order)], main="ACF of residuals of the time estimated AR(1) model(0.7)")
+```
+
+- The ACF of the residuals resembles that of white noise. This indicates that the estimated AR(1) model is a good fit to the data.
+
+
+
