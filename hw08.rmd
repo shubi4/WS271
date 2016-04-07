@@ -1,0 +1,196 @@
+---
+title: "Homework 8"
+author: "Ron Cordell, Lei Yang, Subhashini Raghunathan"
+date: "Apr 7, 2016"
+output: pdf_document
+---
+
+
+#Build an univariate linear time series model (i.e AR, MA, and ARMA models) using the series in hw08_series.csv.
+
+
+**Use all the techniques that have been taught so far to build the model, including date examination, data visualization, etc.**
+
+```{r}
+library(astsa)    # Time series package by Shummway and Stoffer
+library(zoo)      # time series package
+library(forecast)
+library(quantmod) 
+setwd("C:/Subha/WS271-Regression/Labs/Data")
+
+data = read.csv("hw08_series.csv")
+data.ts = ts(data=data$x)
+
+
+# 1. Examining the Data
+
+str(data)
+summary(data)
+head(data, 10)
+
+# 2. Data Visualization
+par(mfrow=c(2,2))
+plot.ts(data.ts, main="Hw08 series",
+        col="blue")
+hist(data$x, col="gray", main="Hw08 series")
+acf(data.ts, main="ACF of Hw08 series")
+pacf(data.ts, main="PACF of Hw08 series")
+```
+
+**All the steps to support your final model need to be shown clearly.**
+**Show that the assumptions underlying the model are valid.**
+** Which model seems most reasonable in terms of satisfying the model's underling assumption?**
+
+
+From the series plot it is clear that this is not a stationary series. It strongly resembles random walk with drift. It has a strong upward trend and does not come down. The ACF shows high correlation even after 25 lags, and PACF immediately drops to 0.
+
+Given this, it is clear that AR and MA and ARMA models are insufficient to model this series. Still, let's try it.
+
+```{r}
+
+#first, let's try several MA models
+
+best_aic_ma = 10000
+best_order_ma = 999
+all_aics_ma = vector("list", 30)
+
+for(i in 1:30) {
+  data.fit <- arima(data.ts, order=c(0,0,i))
+  if(data.fit$aic < best_aic_ma ){
+    best_aic_ma = data.fit$aic
+    best_order_ma = length(data.fit$coef) -1
+    best_model_ma = data.fit
+  }
+  all_aics_ma[i] = data.fit$aic
+}
+
+#the AIC keep reducing; order 30 is the best model
+all_aics_ma
+best_order_ma
+best_model_ma
+
+
+#now let's try AR models. Here we find that after order 3, the series cannot be estimated because of non-stationarity.
+best_aic_ar = 10000
+best_order_ar = 999
+all_aics_ar = vector("list", 3)
+
+
+for(i in 1:3) {
+  data.fit <- arima(data.ts, order=c(i,0,0))
+  if(data.fit$aic < best_aic_ar ){
+    best_aic_ar = data.fit$aic
+    best_order_ar = length(data.fit$coef) -1
+    best_model_ar = data.fit
+  }
+  all_aics_ar[i] = data.fit$aic
+}
+
+#AICS are quite similar for all 3
+all_aics_ar
+best_order_ar
+best_model_ar
+
+
+
+#for arma, (1,0,1) is the only model that R will estimate because of non-stationarity in higher models.
+best_aic_arma = 10000
+best_order_arma = 999
+all_aics_arma = vector("list", 30)
+
+
+for(i in 1:1) {
+  data.fit <- arima(data.ts, order=c(i,0,i))
+  if(data.fit$aic < best_aic_arma ){
+    best_aic_arma = data.fit$aic
+    best_order_arma = length(data.fit$coef) -1
+    best_model_arma = data.fit
+  }
+  all_aics_arma[i] = data.fit$aic
+}
+
+all_aics_arma
+best_order_arma
+best_model_arma
+
+
+
+```
+
+- Based on the above, it would seem that MA(30) is the best model to pick. It's AIC is 1553. In contrast, the best AR model AR(3) has AIC of 1787.
+- An MA(q) process is stationary, so the underlying assumptions are satisfied.
+
+
+- The assumptions for the AR(p) model are that the series being modeled is stationary. As we have see, R does not allow us to estimate AR models for this series where p > 3 because it detects that these models are non-stationary.
+
+- The roots of the characteristic polyomial for AR(3) ae calculated as follows:
+
+```{r}
+
+#we know that the best AR model has order 3.
+polyroot(c(best_model_ar$coef[1], best_model_ar$coef[1], best_model_ar$coef[1]))
+
+```
+
+- The roots of this equation are outside the unit circle in absolute value, hence the estimated process is stationary.
+
+
+
+**Evaluate the model performance (both in- and out-of-sample)**
+
+
+We evaluate the MA(30) model here.
+
+```{r}
+
+#model diagnostics - residuals
+par(mfrow=c(2,2))
+plot.ts(best_model_ma$resid, main="Residual Series",
+        ylab="residuals", col="navy")
+hist(best_model_ma$resid, col="gray", main="Residuals")
+acf(best_model_ma$resid, main="ACF of Residuals")
+pacf(best_model_ma$resid, main="PACF of Residuals")
+
+#analysis of residuals
+head(cbind(data.ts, fitted(best_model_ma), best_model_ma$resid),10)
+
+df<-data.frame(cbind(data.ts, fitted(best_model_ma), best_model_ma$resid))
+library(stargazer)
+stargazer(df, type="text")
+summary(best_model_ma$resid)
+
+```
+
+- The residuals resemble white noise and have no significant ACFs; some PACFs are significant but this could be due to sampling error.
+
+
+```{r}
+# Model Performance Evaluation Using In-Sample Fit
+par(mfrow=c(1,1))
+  plot(data.ts, col="navy", 
+       main="Original vs Estimated Series (MA(30))",
+       ylab="Simulated and Estimated Values", lty=2)
+  lines(fitted(best_model_ma),col="orange")
+  leg.txt <- c("Original Series", "Estimated Series")
+  legend("topright", legend=leg.txt, lty=c(2,1), 
+         col=c("navy","orange"), bty='n', cex=1)
+  
+```
+
+- As we can see, the fitted model follows the original pretty closely.
+
+```{r}
+
+# Forecast - out-of-sample fit
+best_model_ma.fcast <- forecast.Arima(best_model_ma, 10)
+summary(best_model_ma.fcast)
+
+plot(best_model_ma.fcast, main="10-Step Ahead Forecast and Original & Estimated Series",
+    xlab="Simulated Time Period", ylab="Original, Estimated, and Forecasted Values",
+    xlim=c(), lty=2, col="navy")
+lines(fitted(best_model_ma),col="orange")  
+
+```
+
+- From the plot above we can see that the model predits a downward trend with a pretty narrow confidence interval, indicating a strong confidence in the continued downward trend in the future.
+
